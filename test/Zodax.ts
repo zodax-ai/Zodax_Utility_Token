@@ -3,17 +3,16 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import hre, { ethers, upgrades } from "hardhat";
 
-describe("Zodax", function () {
+describe("ZODAX", function () {
   async function deployZodaxFixture() {
     const [owner, buyer, defaultAdmin, pauser, anotherAccount] =
       await hre.ethers.getSigners();
 
-    const Token = await hre.ethers.getContractFactory("Zodax");
+    const Token = await hre.ethers.getContractFactory("ZODAX");
     const token = await Token.deploy(
       defaultAdmin.address,
       owner.address,
-      pauser.address,
-      ethers.parseEther("3000000")
+      pauser.address
     );
 
     return {
@@ -27,29 +26,63 @@ describe("Zodax", function () {
   }
 
   describe("Deployment", function () {
-    it("Should deploy the Zodax Token contract", async function () {
-      const { token, pauser, owner, defaultAdmin } = await loadFixture(
+    it("Should set the correct name", async function () {
+      const { token } = await loadFixture(deployZodaxFixture);
+
+      expect(await token.name()).to.equal("ZODAX");
+    });
+
+    it("Should set the correct symbol", async function () {
+      const { token } = await loadFixture(deployZodaxFixture);
+
+      expect(await token.symbol()).to.equal("ZDX");
+    });
+
+    it("Should set the default Admin address as the default admin", async function () {
+      const { token, owner, defaultAdmin } = await loadFixture(
         deployZodaxFixture
       );
 
-      expect(await token.name()).to.equal("Zodax");
-      expect(await token.symbol()).to.equal("ZDX");
-      expect(await token.decimals()).to.equal(18);
-      expect(await token.totalSupply()).to.equal(ethers.parseEther("3000000"));
-      expect(await token.maxTotalSupply()).to.equal(
-        ethers.parseEther("3000000")
-      );
-      expect(await token.balanceOf(owner.address)).to.equal(
-        ethers.parseEther("3000000")
-      );
+      expect(
+        await token.hasRole(await token.DEFAULT_ADMIN_ROLE(), owner.address)
+      ).to.be.false;
       expect(
         await token.hasRole(
           await token.DEFAULT_ADMIN_ROLE(),
           defaultAdmin.address
         )
       ).to.be.true;
+    });
+
+    it("Should set the pauser address as the pauser", async function () {
+      const { token, pauser, owner } = await loadFixture(deployZodaxFixture);
+
       expect(await token.hasRole(await token.PAUSER_ROLE(), pauser.address)).to
         .be.true;
+      expect(await token.hasRole(await token.PAUSER_ROLE(), owner.address)).to
+        .be.false;
+    });
+
+    it("Should set the maxTotalSupply to the 1 Billion", async function () {
+      const { token, pauser, owner } = await loadFixture(deployZodaxFixture);
+
+      expect(await token.maxSupply()).to.equal(ethers.parseEther("1000000000"));
+    });
+
+    it("Should set the initial total supply to 1 Billion", async function () {
+      const { token, pauser, owner } = await loadFixture(deployZodaxFixture);
+
+      expect(await token.totalSupply()).to.equal(
+        ethers.parseEther("1000000000")
+      );
+    });
+
+    it("Should set the balance of the owner to 1 Billion", async function () {
+      const { token, pauser, owner } = await loadFixture(deployZodaxFixture);
+
+      expect(await token.balanceOf(owner.address)).to.equal(
+        ethers.parseEther("1000000000")
+      );
     });
   });
 
@@ -77,6 +110,38 @@ describe("Zodax", function () {
       await expect(
         token.connect(owner).transfer(buyer.address, ethers.parseEther("1000"))
       ).to.be.revertedWithCustomError(token, "EnforcedPause");
+    });
+
+    it("Should allow pausing by new pauser", async function () {
+      const { token, pauser, owner, buyer, anotherAccount, defaultAdmin } =
+        await loadFixture(deployZodaxFixture);
+
+      await token
+        .connect(defaultAdmin)
+        .grantRole(await token.PAUSER_ROLE(), anotherAccount.address);
+      await token.connect(anotherAccount).pause();
+      expect(await token.connect(anotherAccount).paused()).to.be.true;
+    });
+
+    it("Should not allow pausing if role is revoked", async function () {
+      const { token, pauser, owner, buyer, anotherAccount, defaultAdmin } =
+        await loadFixture(deployZodaxFixture);
+
+      await token
+        .connect(defaultAdmin)
+        .grantRole(await token.PAUSER_ROLE(), anotherAccount.address);
+      await token.connect(anotherAccount).pause();
+      expect(await token.paused()).to.be.true;
+
+      await token
+        .connect(defaultAdmin)
+        .revokeRole(await token.PAUSER_ROLE(), anotherAccount.address);
+      await expect(
+        token.connect(anotherAccount).pause()
+      ).to.be.revertedWithCustomError(
+        token,
+        "AccessControlUnauthorizedAccount"
+      );
     });
   });
 
@@ -114,6 +179,41 @@ describe("Zodax", function () {
 
       expect(await token.balanceOf(buyer.address)).to.equal(
         ethers.parseEther("1000")
+      );
+    });
+
+    it("Should allow unpausing by new pauser", async function () {
+      const { token, pauser, owner, buyer, anotherAccount, defaultAdmin } =
+        await loadFixture(deployZodaxFixture);
+
+      await token
+        .connect(defaultAdmin)
+        .grantRole(await token.PAUSER_ROLE(), anotherAccount.address);
+      await token.connect(anotherAccount).pause();
+      expect(await token.paused()).to.be.true;
+
+      await token.connect(anotherAccount).unpause();
+      expect(await token.paused()).to.be.false;
+    });
+
+    it("Should not allow unpausing if role is revoked", async function () {
+      const { token, pauser, owner, buyer, anotherAccount, defaultAdmin } =
+        await loadFixture(deployZodaxFixture);
+
+      await token
+        .connect(defaultAdmin)
+        .grantRole(await token.PAUSER_ROLE(), anotherAccount.address);
+      await token.connect(anotherAccount).pause();
+      expect(await token.paused()).to.be.true;
+
+      await token
+        .connect(defaultAdmin)
+        .revokeRole(await token.PAUSER_ROLE(), anotherAccount.address);
+      await expect(
+        token.connect(anotherAccount).unpause()
+      ).to.be.revertedWithCustomError(
+        token,
+        "AccessControlUnauthorizedAccount"
       );
     });
   });
@@ -167,6 +267,25 @@ describe("Zodax", function () {
       const { token, pauser, owner, buyer } = await loadFixture(
         deployZodaxFixture
       );
+
+      await token
+        .connect(owner)
+        .transfer(buyer.address, ethers.parseEther("1000"));
+      expect(await token.balanceOf(buyer.address)).to.equal(
+        ethers.parseEther("1000")
+      );
+    });
+
+    it("Should allow transfer when unpaused", async function () {
+      const { token, pauser, owner, buyer } = await loadFixture(
+        deployZodaxFixture
+      );
+
+      await token.connect(pauser).pause();
+      expect(await token.paused()).to.be.true;
+
+      await token.connect(pauser).unpause();
+      expect(await token.paused()).to.be.false;
 
       await token
         .connect(owner)
@@ -281,7 +400,7 @@ describe("Zodax", function () {
 
       await token.connect(owner).burn(ethers.parseEther("100"));
       expect(await token.balanceOf(owner.address)).to.equal(
-        ethers.parseEther("2999900")
+        ethers.parseEther("999999900")
       );
     });
 
@@ -291,6 +410,32 @@ describe("Zodax", function () {
       await expect(
         token.connect(buyer).burn(ethers.parseEther("1000"))
       ).to.be.revertedWithCustomError(token, "ERC20InsufficientBalance");
+    });
+
+    it("Should not allow burning when paused", async function () {
+      const { token, pauser, owner } = await loadFixture(deployZodaxFixture);
+
+      await token.connect(pauser).pause();
+      expect(await token.paused()).to.be.true;
+
+      await expect(
+        token.connect(owner).burn(ethers.parseEther("100"))
+      ).to.be.revertedWithCustomError(token, "EnforcedPause");
+    });
+
+    it("Should allow burning when unpaused", async function () {
+      const { token, pauser, owner } = await loadFixture(deployZodaxFixture);
+
+      await token.connect(pauser).pause();
+      expect(await token.paused()).to.be.true;
+
+      await token.connect(pauser).unpause();
+      expect(await token.paused()).to.be.false;
+
+      await token.connect(owner).burn(ethers.parseEther("100"));
+      expect(await token.balanceOf(owner.address)).to.equal(
+        ethers.parseEther("999999900")
+      );
     });
   });
 
@@ -410,6 +555,32 @@ describe("Zodax", function () {
           .connect(defaultAdmin)
           .emergencyWithdraw(testToken.target, anotherAccount.address, 0)
       ).to.be.revertedWith("Invalid amount");
+    });
+
+    it("Should allow emergencyWithdraw when paused ", async function () {
+      const { token, defaultAdmin, anotherAccount, pauser } = await loadFixture(
+        deployZodaxFixture
+      );
+
+      const TestToken = await ethers.getContractFactory("TestToken");
+      const testToken = await TestToken.deploy();
+
+      await testToken.mint(token.target, ethers.parseEther("500"));
+
+      await token.connect(pauser).pause();
+      expect(await token.paused()).to.be.true;
+
+      await token
+        .connect(defaultAdmin)
+        .emergencyWithdraw(
+          testToken.target,
+          anotherAccount.address,
+          ethers.parseEther("500")
+        );
+
+      expect(await testToken.balanceOf(anotherAccount.address)).to.equal(
+        ethers.parseEther("500")
+      );
     });
   });
 

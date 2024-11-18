@@ -13,7 +13,7 @@
 // | '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |
 //  '----------------'  '----------------'  '----------------'  '----------------'  '----------------' 
 
-// Name: Zodax
+// Name: ZODAX
 // Token: ZDX
 
 pragma solidity ^0.8.24;
@@ -24,7 +24,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 
-/// @title Zodax ERC20 Token Contract
+/// @title ZODAX ERC20 Token Contract
 /// @notice Implements an ERC20 token with pausing, burning, and permit functionality.
 /// @dev Inherits from OpenZeppelin's:
 ///      - ERC20: Standard ERC20 implementation
@@ -32,7 +32,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 ///      - ERC20Pausable: Enables pausing of token transfers
 ///      - AccessControl: Role-based access management
 ///      - ERC20Permit: Permit-based approvals
-contract Zodax is
+contract ZODAX is
     ERC20,
     ERC20Burnable,
     ERC20Pausable,
@@ -41,7 +41,7 @@ contract Zodax is
 {
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
-    uint256 public maxTotalSupply;
+    uint256 public maxTotalSupply = 1000000000 * 10 ** decimals();
 
     event EmergencyWithdraw(address token, address recipient, uint256 amount);
 
@@ -49,17 +49,14 @@ contract Zodax is
     /// @param defaultAdmin Address assigned the DEFAULT_ADMIN_ROLE.
     /// @param owner Address receiving the initial max token supply.
     /// @param pauser Address granted the PAUSER_ROLE.
-    /// @param maxSupply_ Maximum total supply of the token.
     constructor(
         address defaultAdmin,
         address owner,
-        address pauser,
-        uint256 maxSupply_
-    ) ERC20("Zodax", "ZDX") ERC20Permit("Zodax") {
-        maxTotalSupply = maxSupply_;
+        address pauser
+    ) ERC20("ZODAX", "ZDX") ERC20Permit("ZODAX") {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(PAUSER_ROLE, pauser);
-        _mint(owner, maxSupply_);
+        _mint(owner, maxTotalSupply);
     }
 
     /// @notice Pauses all token transfers.
